@@ -12,6 +12,13 @@ typedef struct {
     float saldo; // Adicionando saldo para cada usuário
 } Usuario;
 
+typedef struct UsuarioNode {
+    Usuario usuario;
+    struct UsuarioNode* proximo;
+} UsuarioNode;
+
+UsuarioNode* listaUsuarios = NULL; // Ponteiro para o primeiro nó da lista
+
 typedef struct {
     int id;
     char casa[15];
@@ -58,17 +65,54 @@ FILE* abrirArquivo(const char* nomeArquivo, const char* modo) {
     return arquivo;
 }
 
+void adicionarUsuario(Usuario novoUsuario) {
+    UsuarioNode* novoNo = (UsuarioNode*)malloc(sizeof(UsuarioNode));
+    if (novoNo == NULL) {
+        perror("Erro ao alocar memória para novo usuário");
+        exit(EXIT_FAILURE);
+    }
+
+    novoNo->usuario = novoUsuario;
+    novoNo->proximo = listaUsuarios;
+    listaUsuarios = novoNo;
+
+    printf("Usuário cadastrado com sucesso!\n");
+}
+
 void salvarUsuarios() {
     FILE* arquivo = abrirArquivo("usuarios.bin", "wb");
-    fwrite(&numeroUsuarios, sizeof(int), 1, arquivo);
-    fwrite(usuarios, sizeof(Usuario), numeroUsuarios, arquivo);
+    UsuarioNode* atual = listaUsuarios;
+    int quantidadeUsuarios = 0;
+
+    // Conta a quantidade de usuários na lista
+    while (atual != NULL) {
+        quantidadeUsuarios++;
+        atual = atual->proximo;
+    }
+
+    fwrite(&quantidadeUsuarios, sizeof(int), 1, arquivo);
+    atual = listaUsuarios;
+
+    // Escreve cada usuário no arquivo
+    while (atual != NULL) {
+        fwrite(&(atual->usuario), sizeof(Usuario), 1, arquivo);
+        atual = atual->proximo;
+    }
+
     fclose(arquivo);
 }
 
 void carregarUsuarios() {
     FILE* arquivo = abrirArquivo("usuarios.bin", "rb");
-    if (fread(&numeroUsuarios, sizeof(int), 1, arquivo) == 1) {
-        fread(usuarios, sizeof(Usuario), numeroUsuarios, arquivo);
+    int quantidadeUsuarios;
+
+    if (fread(&quantidadeUsuarios, sizeof(int), 1, arquivo) == 1) {
+        for (int i = 0; i < quantidadeUsuarios; i++) {
+            Usuario usuario;
+            if (fread(&usuario, sizeof(Usuario), 1, arquivo) == 1) {
+                adicionarUsuario(usuario); // Adiciona cada usuário na lista
+            }
+        }
     }
     fclose(arquivo);
 }
@@ -138,28 +182,29 @@ void cadastrarUsuario() {
     strcpy(novoUsuario.email, email);
     novoUsuario.saldo = 0.0; // Inicializa o saldo do novo usuário
 
-    usuarios[numeroUsuarios] = novoUsuario;
-    numeroUsuarios++;
-
-    printf("Usuário cadastrado com sucesso!\n");
-
+    adicionarUsuario(novoUsuario);
     salvarUsuarios(); // Salva as alterações
 }
 
 int logarUsuario() {
     char nomeUsuario[50], senha[20];
+    UsuarioNode* atual = listaUsuarios;
+    int indice = 0;
 
     printf("Digite o nome de usuário ou e-mail: ");
     scanf("%s", nomeUsuario);
     printf("Digite a senha: ");
     scanf("%s", senha);
 
-    for (int i = 0; i < numeroUsuarios; i++) {
-        if ((strcmp(usuarios[i].nomeUsuario, nomeUsuario) == 0 || strcmp(usuarios[i].email, nomeUsuario) == 0) &&
-            strcmp(usuarios[i].senha, senha) == 0) {
-            usuarioLogado = i; // Define o índice do usuário logado
+    while (atual != NULL) {
+        if ((strcmp(atual->usuario.nomeUsuario, nomeUsuario) == 0 || 
+             strcmp(atual->usuario.email, nomeUsuario) == 0) &&
+            strcmp(atual->usuario.senha, senha) == 0) {
+            usuarioLogado = indice; // Define o índice do usuário logado
             return 1; // Usuário encontrado
         }
+        atual = atual->proximo;
+        indice++;
     }
 
     printf("Credenciais inválidas.\n");
